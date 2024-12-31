@@ -1,3 +1,5 @@
+name: workflow
+
 on:
   push:
     branches:
@@ -35,7 +37,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq unzip
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -54,16 +55,19 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
           IMAGE_TAG: latest
         run: |
-          # Build a docker container and push it to ECR so that it can be deployed to ECS.
+          # Build a docker container and
+          # push it to ECR so that it can
+          # be deployed to ECS.
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
-
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          
+          
   Continuous-Deployment:
     needs: build-and-push-ecr-image
     runs-on: self-hosted
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v3
 
       - name: Configure AWS credentials
@@ -77,25 +81,18 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
       
+      
       - name: Pull latest images
         run: |
-          docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
-
-      - name: Stop and remove container if running
-        run: |
-          docker ps -q --filter "name=cnncls" | grep -q . && docker stop cnncls && docker rm -fv cnncls || echo "No running container to stop."
-
+         docker pull ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
+         
+      # - name: Stop and remove container if running
+      #   run: |
+      #    docker ps -q --filter "name=cnncls" | grep -q . && docker stop cnncls && docker rm -fv cnncls
+       
       - name: Run Docker Image to serve users
         run: |
-          docker run -d -p 8080:8080 --name=cnncls \
-            -e 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' \
-            -e 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
-            -e 'AWS_REGION=${{ secrets.AWS_REGION }}' \
-            ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_NAME }}:latest || { echo "Failed to run Docker container"; exit 1; }
-
+         docker run -d -p 8080:8080 --name=cnncls -e 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' -e 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' -e 'AWS_REGION=${{ secrets.AWS_REGION }}'  ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
       - name: Clean previous images and containers
         run: |
-          docker system prune -f
-
-      - name: List Docker Images for Debugging
-        run: docker images
+         docker system prune -f
