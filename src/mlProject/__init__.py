@@ -9,10 +9,11 @@ log_filepath = os.path.join(log_dir,"running_logs.log")  #inside directory creat
 os.makedirs(log_dir, exist_ok=True)
 
 
-""" 
-    logging configuration starts from the below
+'''
+    
+logging configuration starts from the below
 
-"""
+'''
 
 logging.basicConfig(
     level= logging.INFO,
